@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model Player {
@@ -18,9 +19,16 @@ model Player {
   rosters       CaptureRoster[]
 }
 
+enum EventType {
+  KAPT
+  MCL
+  TOURNAMENT
+}
+
 model Capture {
   id          String          @id @default(cuid())
   date        DateTime        @default(now())
+  eventType   EventType       @default(KAPT)
   won         Boolean
   scoreOurs   Int
   scoreTheirs Int

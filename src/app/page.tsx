@@ -1,65 +1,138 @@
+import prisma from "@/lib/prisma";
 import Image from "next/image";
+import { DashboardClient } from "@/components/DashboardClient";
+import { format, subDays, startOfDay } from "date-fns";
+import * as motion from "framer-motion/client";
 
-export default function Home() {
+type EventTypeStr = "KAPT" | "MCL" | "TOURNAMENT";
+type CaptureBasic = { won: boolean; eventType: EventTypeStr };
+type CaptureWithDate = { date: Date; won: boolean; eventType: EventTypeStr };
+
+function computeStats(captures: { won: boolean }[]) {
+  const total = captures.length;
+  const wins = captures.filter((c) => c.won).length;
+  const losses = total - wins;
+  const winRate = total > 0 ? ((wins / total) * 100).toFixed(0) : "0";
+  return { total, wins, losses, winRate };
+}
+
+function buildChartData(captures: { date: Date; won: boolean }[]) {
+  const days: Record<string, { wins: number; losses: number }> = {};
+  for (let i = 29; i >= 0; i--) {
+    const key = format(subDays(new Date(), i), "dd.MM");
+    days[key] = { wins: 0, losses: 0 };
+  }
+  for (const cap of captures) {
+    const key = format(new Date(cap.date), "dd.MM");
+    if (days[key]) {
+      if (cap.won) days[key].wins++;
+      else days[key].losses++;
+    }
+  }
+  return Object.entries(days).map(([date, { wins, losses }]) => ({ date, wins, losses }));
+}
+
+export default async function DashboardPage() {
+  const thirtyDaysAgo = startOfDay(subDays(new Date(), 29));
+
+  const allCaptures = (await prisma.capture.findMany({
+    select: { won: true, eventType: true },
+  })) as CaptureBasic[];
+
+  const recentCaptures = (await prisma.capture.findMany({
+    where: { date: { gte: thirtyDaysAgo } },
+    select: { date: true, won: true, eventType: true },
+    orderBy: { date: "asc" },
+  })) as CaptureWithDate[];
+
+  const allPlayerStats = await prisma.playerCapStat.findMany({
+    select: {
+      playerId: true,
+      kills: true,
+      damage: true,
+      player: { select: { id: true, inGameName: true, discordName: true } },
+    },
+  });
+
+  // Stats per type
+  const statsByType = {
+    ALL: computeStats(allCaptures),
+    KAPT: computeStats(allCaptures.filter((c) => c.eventType === "KAPT")),
+    MCL: computeStats(allCaptures.filter((c) => c.eventType === "MCL")),
+    TOURNAMENT: computeStats(allCaptures.filter((c) => c.eventType === "TOURNAMENT")),
+  };
+
+  // Chart data per filter
+  const chartDataByType = {
+    ALL: buildChartData(recentCaptures),
+    KAPT: buildChartData(recentCaptures.filter((c) => c.eventType === "KAPT")),
+    MCL: buildChartData(recentCaptures.filter((c) => c.eventType === "MCL")),
+    TOURNAMENT: buildChartData(recentCaptures.filter((c) => c.eventType === "TOURNAMENT")),
+  };
+
+  // Aggregate per player
+  const playerMap: Record<string, { id: string; name: string; kills: number; damage: number }> = {};
+  for (const stat of allPlayerStats) {
+    const { playerId, kills, damage, player } = stat;
+    if (!playerMap[playerId]) {
+      playerMap[playerId] = {
+        id: playerId,
+        name: player.inGameName || player.discordName,
+        kills: 0,
+        damage: 0,
+      };
+    }
+    playerMap[playerId].kills += kills;
+    playerMap[playerId].damage += damage;
+  }
+
+  const allPlayers = Object.values(playerMap);
+  const topKills = [...allPlayers].sort((a, b) => b.kills - a.kills).slice(0, 5);
+  const topDamage = [...allPlayers].sort((a, b) => b.damage - a.damage).slice(0, 5);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
+    <div className="space-y-16 pb-20">
+      {/* Hero */}
+      <motion.div
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.8, ease: "easeOut" }}
+        className="relative pb-12 border-b border-white/5"
+      >
+        <section style={{ display: "flex", alignItems: "center", gap: "48px", padding: "40px 0 0" }}>
+          <div style={{ width: "260px", height: "260px", position: "relative", flexShrink: 0 }}>
             <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+              src="/nocap-animated.gif"
+              alt="NoCap"
+              fill
+              style={{ objectFit: "contain" }}
+              unoptimized
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+          </div>
+          <h1
+            style={{
+              fontFamily: "Bebas Neue, sans-serif",
+              fontSize: "96px",
+              color: "white",
+              lineHeight: 1,
+              letterSpacing: "4px",
+              fontWeight: "bold",
+            }}
           >
-            Documentation
-          </a>
-        </div>
-      </main>
+            СТАТИСТИКА
+            <br />
+            КАПТОВ
+          </h1>
+        </section>
+      </motion.div>
+
+      {/* Interactive dashboard */}
+      <DashboardClient
+        statsByType={statsByType}
+        chartDataByType={chartDataByType}
+        topKills={topKills}
+        topDamage={topDamage}
+      />
     </div>
   );
 }

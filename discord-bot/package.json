@@ -1,0 +1,10 @@
+{
+  "name": "majestic-cap-bot",
+  "version": "1.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.6.1"
+  }
+}

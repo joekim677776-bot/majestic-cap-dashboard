@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \"const m = require\\('d:/majestic-cap-dashboard/node_modules/framer-motion'\\); console.log\\(Object.keys\\(m\\).filter\\(k => k === 'motion' || k === 'option'\\)\\)\")",
+      "Bash(node -e \"try { const m = require\\('d:/majestic-cap-dashboard/node_modules/framer-motion/client'\\); console.log\\(Object.keys\\(m\\).slice\\(0,20\\)\\); } catch\\(e\\) { console.log\\(e.message\\); }\")",
+      "Bash(npx tsc:*)",
+      "Bash(node -e \"const pkg = require\\('d:/majestic-cap-dashboard/node_modules/next/package.json'\\); console.log\\(pkg.version\\)\")",
+      "Bash(npx prisma:*)"
+    ]
+  }
+}
