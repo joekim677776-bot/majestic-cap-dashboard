@@ -1,0 +1,50 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Player {
+  id            String          @id @default(cuid())
+  discordId     String          @unique
+  discordName   String
+  discordAvatar String?
+  inGameName    String?
+  createdAt     DateTime        @default(now())
+  capStats      PlayerCapStat[]
+  rosters       CaptureRoster[]
+}
+
+model Capture {
+  id          String          @id @default(cuid())
+  date        DateTime        @default(now())
+  won         Boolean
+  scoreOurs   Int
+  scoreTheirs Int
+  notes       String?
+  playerStats PlayerCapStat[]
+  roster      CaptureRoster[]
+}
+
+model PlayerCapStat {
+  id        String  @id @default(cuid())
+  playerId  String
+  captureId String
+  kills     Int     @default(0)
+  deaths    Int     @default(0)
+  damage    Int     @default(0)
+  player    Player  @relation(fields: [playerId], references: [id])
+  capture   Capture @relation(fields: [captureId], references: [id])
+  @@unique([playerId, captureId])
+}
+
+model CaptureRoster {
+  id        String  @id @default(cuid())
+  playerId  String
+  captureId String
+  player    Player  @relation(fields: [playerId], references: [id])
+  capture   Capture @relation(fields: [captureId], references: [id])
+}
