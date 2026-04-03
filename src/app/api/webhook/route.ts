@@ -1,83 +1,88 @@
-import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
+import { NextResponse } from 'next/server'
+import { PrismaClient } from '@prisma/client'
 
-const VALID_EVENT_TYPES = ["KAPT", "MCL", "TOURNAMENT"] as const;
-type EventTypeStr = (typeof VALID_EVENT_TYPES)[number];
+export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 export async function POST(req: Request) {
+  const prisma = new PrismaClient()
+
   try {
-    const auth = req.headers.get('authorization');
+    const auth = req.headers.get('authorization')
     if (auth !== `Bearer ${process.env.WEBHOOK_SECRET}`) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const data = await req.json();
-    console.log('Webhook received:', JSON.stringify(data, null, 2));
+    const data = await req.json()
+    console.log('Webhook received, players:', data.players?.length)
 
-    if (
-      data.won === undefined ||
-      data.score_ours === undefined ||
-      data.score_theirs === undefined ||
-      !Array.isArray(data.players)
-    ) {
-      return NextResponse.json({ error: "Invalid data format" }, { status: 400 });
-    }
+    const capture = await prisma.capture.create({
+      data: {
+        won: data.won ?? false,
+        scoreOurs: data.score_ours ?? 0,
+        scoreTheirs: data.score_theirs ?? 0,
+        eventType: data.eventType ?? 'KAPT',
+        notes: data.eventTime ?? null,
+      }
+    })
 
-    const rawType = (data.eventType as string)?.toUpperCase();
-    const eventType: EventTypeStr = VALID_EVENT_TYPES.includes(rawType as EventTypeStr)
-      ? (rawType as EventTypeStr)
-      : "KAPT";
+    console.log('Capture created:', capture.id)
 
-    const capture = await prisma.$transaction(async (txRaw) => {
-      const tx = txRaw as any;
-      const newCapture = await tx.capture.create({
-        data: {
-          eventType,
-          won: data.won === "victory" || data.won === true || data.won === "Победа",
-          scoreOurs: parseInt(data.score_ours),
-          scoreTheirs: parseInt(data.score_theirs),
-          date: new Date(),
-          notes: data.eventTime ? `Время: ${data.eventTime}` : "Automatically processed via Discord Bot",
-        } as any,
-      });
+    let savedCount = 0
 
-      for (const p of data.players) {
-        const player = await tx.player.findFirst({
+    for (const p of data.players) {
+      try {
+        const player = await prisma.player.findFirst({
           where: {
             OR: [
               { inGameName: { equals: p.name, mode: 'insensitive' } },
               { inGameName: { contains: p.name, mode: 'insensitive' } },
-              { inGameName: { startsWith: p.name.split('#')[0].trim(), mode: 'insensitive' } },
-              { discordName: { equals: p.name, mode: 'insensitive' } },
-            ],
-          },
-        });
+              {
+                inGameName: {
+                  startsWith: p.name.split(' ')[0],
+                  mode: 'insensitive'
+                }
+              }
+            ]
+          }
+        })
 
         if (player) {
-          await tx.playerCapStat.create({
+          await prisma.playerCapStat.create({
             data: {
-              playerId:  player.id,
-              captureId: newCapture.id,
-              kills:  parseInt(p.kills)  || 0,
-              deaths: parseInt(p.deaths) || 0,
-              damage: parseInt(p.damage) || 0,
-            },
-          });
-          await tx.captureRoster.create({
-            data: { playerId: player.id, captureId: newCapture.id },
-          });
+              playerId: player.id,
+              captureId: capture.id,
+              kills: p.kills ?? 0,
+              deaths: p.deaths ?? 0,
+              damage: p.damage ?? 0,
+            }
+          })
+          savedCount++
+          console.log(`Saved: ${p.name}`)
+        } else {
+          console.log(`Not found: ${p.name}`)
         }
+      } catch (playerError) {
+        console.error(`Error saving ${p.name}:`, playerError)
       }
+    }
 
-      return newCapture;
-    });
+    console.log(`Done: ${savedCount}/${data.players.length}`)
 
-    return NextResponse.json({ success: true, captureId: capture.id });
+    return NextResponse.json({
+      success: true,
+      captureId: capture.id,
+      savedPlayers: savedCount,
+      totalPlayers: data.players.length
+    })
+
   } catch (error) {
-    console.error('Webhook error:', error);
+    console.error('Webhook error:', error)
     return NextResponse.json({
       error: 'Internal Server Error',
-      details: error instanceof Error ? error.message : 'Unknown error',
-    }, { status: 500 });
+      details: error instanceof Error ? error.message : String(error)
+    }, { status: 500 })
+  } finally {
+    await prisma.$disconnect()
   }
 }
