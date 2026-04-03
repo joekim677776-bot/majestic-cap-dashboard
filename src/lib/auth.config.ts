@@ -2,6 +2,7 @@ import type { NextAuthConfig } from "next-auth";
 import DiscordProvider from "next-auth/providers/discord";
 
 export default {
+  trustHost: true,
   providers: [
     DiscordProvider({
       clientId: process.env.DISCORD_CLIENT_ID,

@@ -4,6 +4,7 @@ import authConfig from "./auth.config";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   ...authConfig,
+  trustHost: true,
   callbacks: {
     ...authConfig.callbacks,
     async signIn({ account, profile }) {
