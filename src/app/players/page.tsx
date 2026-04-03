@@ -1,5 +1,7 @@
 export const dynamic = 'force-dynamic'
 
+import { auth } from "@/lib/auth";
+import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
 import { Users } from "lucide-react";
 import * as motion from "framer-motion/client";
@@ -18,6 +20,9 @@ interface PageProps {
 }
 
 export default async function PlayersPage({ searchParams }: PageProps) {
+  const session = await auth()
+  if (!session) redirect('/api/auth/signin')
+
   const { type = "ALL" } = await searchParams;
 
   const capStatWhere = type !== "ALL"

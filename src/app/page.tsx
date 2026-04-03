@@ -1,5 +1,7 @@
 export const dynamic = 'force-dynamic'
 
+import { auth } from "@/lib/auth";
+import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
 import Image from "next/image";
 import { DashboardClient } from "@/components/DashboardClient";
@@ -35,6 +37,9 @@ function buildChartData(captures: { date: Date; won: boolean }[]) {
 }
 
 export default async function DashboardPage() {
+  const session = await auth()
+  if (!session) redirect('/api/auth/signin')
+
   const thirtyDaysAgo = startOfDay(subDays(new Date(), 29));
 
   const allCaptures = (await prisma.capture.findMany({

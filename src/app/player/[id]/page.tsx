@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import prisma from "@/lib/prisma";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -36,6 +36,8 @@ export default async function PlayerProfilePage({ params, searchParams }: PagePr
     searchParams,
     auth(),
   ]);
+
+  if (!session) redirect('/api/auth/signin')
 
   const capStatWhere = type !== "ALL"
     ? ({ capture: { eventType: type } } as any)
