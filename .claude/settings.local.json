@@ -5,7 +5,10 @@
       "Bash(node -e \"try { const m = require\\('d:/majestic-cap-dashboard/node_modules/framer-motion/client'\\); console.log\\(Object.keys\\(m\\).slice\\(0,20\\)\\); } catch\\(e\\) { console.log\\(e.message\\); }\")",
       "Bash(npx tsc:*)",
       "Bash(node -e \"const pkg = require\\('d:/majestic-cap-dashboard/node_modules/next/package.json'\\); console.log\\(pkg.version\\)\")",
-      "Bash(npx prisma:*)"
+      "Bash(npx prisma:*)",
+      "Bash(node -e \"const djs = require\\('d:/majestic-cap-dashboard/discord-bot/node_modules/discord.js'\\); const m = new djs.ModalBuilder\\(\\); console.log\\(Object.getOwnPropertyNames\\(Object.getPrototypeOf\\(m\\)\\).filter\\(n => n.includes\\('omponent'\\) || n.includes\\('ow'\\)\\)\\)\")",
+      "Bash(node -e \"const djs = require\\('d:/majestic-cap-dashboard/discord-bot/node_modules/discord.js'\\); const m = new djs.ModalBuilder\\(\\); console.log\\(Object.getOwnPropertyNames\\(Object.getPrototypeOf\\(m\\)\\)\\)\")",
+      "Bash(node -e ':*)"
     ]
   }
 }

@@ -14,6 +14,7 @@ model Player {
   discordName   String
   discordAvatar String?
   inGameName    String?
+  inGameTag     String?
   createdAt     DateTime        @default(now())
   capStats      PlayerCapStat[]
   rosters       CaptureRoster[]

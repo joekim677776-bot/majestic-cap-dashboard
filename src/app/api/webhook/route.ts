@@ -31,13 +31,20 @@ export async function POST(req: Request) {
           scoreOurs: parseInt(data.score_ours),
           scoreTheirs: parseInt(data.score_theirs),
           date: new Date(),
-          notes: "Automatically processed via Discord Bot",
+          notes: data.eventTime ? `Время: ${data.eventTime}` : "Automatically processed via Discord Bot",
         } as any,
       });
 
       for (const p of data.players) {
         const player = await tx.player.findFirst({
-          where: { OR: [{ inGameName: p.name }, { discordName: p.name }] },
+          where: {
+            OR: [
+              { inGameName: { equals: p.name, mode: 'insensitive' } },
+              { inGameName: { contains: p.name, mode: 'insensitive' } },
+              { inGameName: { startsWith: p.name.split('#')[0].trim(), mode: 'insensitive' } },
+              { discordName: { equals: p.name, mode: 'insensitive' } },
+            ],
+          },
         });
 
         if (player) {

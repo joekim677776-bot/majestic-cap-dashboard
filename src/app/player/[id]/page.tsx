@@ -12,6 +12,7 @@ import * as motion from "framer-motion/client";
 import Link from "next/link";
 import { ChevronLeft, Trophy } from "lucide-react";
 import { Suspense } from "react";
+import { InGameNickForm } from "@/components/InGameNickForm";
 
 const FILTER_OPTIONS = [
   { label: "ВСЕ",     value: "ALL" },
@@ -137,6 +138,9 @@ export default async function PlayerProfilePage({ params, searchParams }: PagePr
           </p>
         </div>
       </motion.div>
+
+      {/* Bind in-game nick */}
+      {isSelf && !player.inGameName && <InGameNickForm />}
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
