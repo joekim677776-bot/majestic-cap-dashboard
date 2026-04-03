@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import prisma from "@/lib/prisma";
 import { Users } from "lucide-react";
 import * as motion from "framer-motion/client";
