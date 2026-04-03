@@ -190,25 +190,69 @@ client.on(Events.InteractionCreate, async (interaction) => {
 // Обработка сообщений со скриншотами
 client.on(Events.MessageCreate, async (message) => {
   if (message.author.bot) return
-  if (message.channelId !== process.env.STATS_CHANNEL_ID) return
-  if (!message.attachments.size) return
+
+  console.log('=== Новое сообщение ===')
+  console.log('Channel:', message.channelId)
+  console.log('Expected:', process.env.STATS_CHANNEL_ID)
+  console.log('Match:', message.channelId === process.env.STATS_CHANNEL_ID)
+  console.log('Attachments:', message.attachments.size)
+
+  if (message.channelId !== process.env.STATS_CHANNEL_ID) {
+    console.log('Пропускаем - не тот канал')
+    return
+  }
+  if (!message.attachments.size) {
+    console.log('Пропускаем - нет вложений')
+    return
+  }
 
   const pending = pendingUploads.get(message.author.id)
-  if (!pending) return
+  console.log('Pending upload:', pending)
 
-  const image = message.attachments.first()
-  if (!image.contentType?.startsWith('image/')) return
+  if (!pending) {
+    console.log('Нет ожидающей загрузки для', message.author.id)
+    console.log('Все pending:', [...pendingUploads.entries()])
+    return
+  }
+
+  const images = [...message.attachments.values()].filter(
+    (a) => a.contentType?.startsWith('image/')
+  )
+  if (!images.length) return
 
   pendingUploads.delete(message.author.id)
 
-  const processingMsg = await message.reply('⏳ Обрабатываю скриншот...')
+  const processingMsg = await message.reply(`⏳ Обрабатываю ${images.length > 1 ? `${images.length} скриншота` : 'скриншот'}...`)
 
   try {
-    const stats = await parseScreenshot(image.url, pending.eventType)
+    const allPlayers = []
+    let finalStats = null
 
-    // Переопределяем won и добавляем eventTime из шагов бота
-    stats.won = pending.won
-    stats.eventTime = pending.eventTime
+    for (const attachment of images) {
+      console.log('Обрабатываю скриншот:', attachment.url)
+      const stats = await parseScreenshot(attachment.url, pending.eventType)
+
+      for (const player of stats.players) {
+        const exists = allPlayers.find(
+          (p) => p.name.toLowerCase() === player.name.toLowerCase()
+        )
+        if (!exists) allPlayers.push(player)
+      }
+
+      if (!finalStats) finalStats = stats
+    }
+
+    const webhookData = {
+      eventType: pending.eventType,
+      won: pending.won,
+      eventTime: pending.eventTime,
+      score_ours: finalStats?.score_ours ?? 0,
+      score_theirs: finalStats?.score_theirs ?? 0,
+      players: allPlayers,
+    }
+
+    console.log('Отправляем на webhook:', JSON.stringify(webhookData, null, 2))
+    console.log('URL:', `${process.env.DASHBOARD_WEBHOOK_URL}/api/webhook`)
 
     const response = await fetch(
       `${process.env.DASHBOARD_WEBHOOK_URL}/api/webhook`,
@@ -218,20 +262,24 @@ client.on(Events.MessageCreate, async (message) => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${process.env.WEBHOOK_SECRET}`,
         },
-        body: JSON.stringify(stats),
+        body: JSON.stringify(webhookData),
       }
     )
 
+    const responseText = await response.text()
+    console.log('Webhook response status:', response.status)
+    console.log('Webhook response body:', responseText)
+
     if (!response.ok) {
-      throw new Error(`Webhook error: ${response.status}`)
+      throw new Error(`Webhook error: ${response.status} - ${responseText}`)
     }
 
     await processingMsg.edit(
       `## ${pending.won ? '✅ ПОБЕДА' : '❌ ПОРАЖЕНИЕ'}\n` +
-      `**Тип:** ${EVENT_NAMES[stats.eventType]}\n` +
+      `**Тип:** ${EVENT_NAMES[pending.eventType]}\n` +
       `**Время:** ${pending.eventTime}\n` +
-      `**Счёт:** ${stats.score_ours}:${stats.score_theirs}\n` +
-      `**Игроков записано:** ${stats.players.length}\n` +
+      `**Счёт:** ${webhookData.score_ours}:${webhookData.score_theirs}\n` +
+      `**Игроков записано:** ${allPlayers.length}\n` +
       `Статистика добавлена на сайт!`
     )
 
@@ -239,7 +287,7 @@ client.on(Events.MessageCreate, async (message) => {
     console.error('Ошибка обработки скриншота:', error)
     await processingMsg.edit(
       '❌ Ошибка при обработке скриншота.\n' +
-      'Убедись что скриншот чёткий и попробуй снова.'
+      'Убедись что скриншоты чёткие и попробуй снова.'
     )
   }
 })

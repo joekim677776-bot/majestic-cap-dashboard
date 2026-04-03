@@ -6,7 +6,13 @@ type EventTypeStr = (typeof VALID_EVENT_TYPES)[number];
 
 export async function POST(req: Request) {
   try {
+    const auth = req.headers.get('authorization');
+    if (auth !== `Bearer ${process.env.WEBHOOK_SECRET}`) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const data = await req.json();
+    console.log('Webhook received:', JSON.stringify(data, null, 2));
 
     if (
       data.won === undefined ||
@@ -68,7 +74,10 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: true, captureId: capture.id });
   } catch (error) {
-    console.error("Webhook processing error:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    console.error('Webhook error:', error);
+    return NextResponse.json({
+      error: 'Internal Server Error',
+      details: error instanceof Error ? error.message : 'Unknown error',
+    }, { status: 500 });
   }
 }
